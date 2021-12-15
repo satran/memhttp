@@ -6,7 +6,7 @@ This is a HTTP server built to serve all its content from memory.
 
 You need to have Go installed. You can install the server by go get'ing it.
 
-    go get github.com/satran/memhttp
+    go install github.com/satran/memhttp
 
 
 ## Configuration

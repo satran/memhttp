@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -94,17 +93,14 @@ func getAliases(filename string) (map[string]string, error) {
 	return aliases, nil
 }
 
-type FS struct {
-	sync.Mutex
-	cache map[string][]byte
-}
+type FS map[string][]byte
 
-func newFS(dir string) (*FS, error) {
+func newFS(dir string) (FS, error) {
 	cache, err := walk(dir, ".git")
 	if err != nil {
 		return nil, err
 	}
-	return &FS{cache: cache}, nil
+	return FS(cache), nil
 }
 
 func walk(dir string, skipDirs ...string) (map[string][]byte, error) {
@@ -131,13 +127,6 @@ func walk(dir string, skipDirs ...string) (map[string][]byte, error) {
 		return nil
 	})
 	return cache, err
-}
-
-func (f *FS) Get(path string) ([]byte, bool) {
-	f.Lock()
-	by, ok := f.cache[path]
-	f.Unlock()
-	return by, ok
 }
 
 func redirect(host string) http.HandlerFunc {
@@ -186,10 +175,10 @@ func logthis(h http.HandlerFunc) http.HandlerFunc {
 // The algorithm for detecting ContentType uses at most sniffLen bytes to make its decision.
 const sniffLen = 512
 
-func handle(aliases map[string]string, fs *FS) http.HandlerFunc {
+func handle(aliases map[string]string, fs FS) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ext := filepath.Ext(r.URL.Path)
-		content, ok := fs.Get(r.URL.Path)
+		content, ok := fs[r.URL.Path]
 		if !ok {
 			alias, ok := aliases[r.URL.Path]
 			if ok {
@@ -202,7 +191,7 @@ func handle(aliases map[string]string, fs *FS) http.HandlerFunc {
 			}
 			// Allow for .html files to be addressed without it
 			ext = "html"
-			content, ok = fs.Get(r.URL.Path + "." + ext)
+			content, ok = fs[r.URL.Path+"."+ext]
 			if !ok {
 				w.WriteHeader(http.StatusNotFound)
 				w.Write([]byte(http.StatusText(http.StatusNotFound)))
